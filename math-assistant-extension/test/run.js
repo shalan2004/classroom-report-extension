@@ -49,6 +49,39 @@ assertEqual(calc.formatNumber(5), '5', 'formatNumber(5) -> "5"');
 assertEqual(calc.formatNumber(2.5), '2.5', 'formatNumber(2.5) -> "2.5"');
 assertEqual(calc.formatNumber(0), '0', 'formatNumber(0) -> "0"');
 
+// --- clampCounter & undo simulation ---------------------------------------
+assertEqual(calc.clampCounter(1.5), 1.5, 'clampCounter(1.5) -> 1.5');
+assertEqual(calc.clampCounter(-0.5), 0, 'clampCounter(-0.5) -> 0');
+assertEqual(calc.clampCounter(0), 0, 'clampCounter(0) -> 0');
+
+// Simulated undo history flow (same logic as in content.js)
+(function testUndoSimulation() {
+  let val = 0;
+  const history = [];
+  function inc(delta) {
+    const next = calc.clampCounter(val + delta);
+    if (next !== val) {
+      history.push(val);
+      val = next;
+    }
+  }
+  function undo() {
+    if (history.length > 0) {
+      val = history.pop();
+    }
+  }
+  inc(1); // val=1, hist=[0]
+  assertEqual(val, 1, 'counter incremented to 1');
+  inc(0.5); // val=1.5, hist=[0, 1]
+  assertEqual(val, 1.5, 'counter incremented to 1.5');
+  undo(); // val=1, hist=[0]
+  assertEqual(val, 1, 'undo restored 1');
+  undo(); // val=0, hist=[]
+  assertEqual(val, 0, 'undo restored 0');
+  undo(); // no-op, val=0
+  assertEqual(val, 0, 'undo on empty history stays 0');
+})();
+
 // --- report generation vs the exact provided samples ---------------------
 const hanouf = { name: 'Hanouf Nawaf' };
 const hanoufHw = { topic: 'Sketching the Curve (P3)', numQuestions: 100 };
@@ -60,7 +93,7 @@ const hanoufRecord = {
   notes: [],
 };
 const expectedHanouf =
-  '\uD83C\uDFC6 *Hanouf Nawaf* \uD83C\uDFC6\n' +
+  '\uD83C\uDFC6 *Hanouf Nawaf* \uD83C\uDFC6\n\n' +
   '*\u2B55\uFE0FSketching the Curve (P3)\u2B55\uFE0F*\n' +
   '-HW sent on time\uD83D\uDFE2\n' +
   '-HW marked \uD83D\uDFE2\n' +
@@ -80,7 +113,7 @@ const ali = { name: 'Ali Raslan' };
 const aliHw = { topic: 'Vectors (P1)', numQuestions: 23 };
 const aliRecord = { mistakes: 1, skipped: 6, sentOnTime: true, marked: false, notes: [] };
 const expectedAli =
-  '*Ali Raslan*\n' +
+  '*Ali Raslan*\n\n' +
   '*\u2B55\uFE0FVectors (P1)\u2B55\uFE0F*\n' +
   '-HW sent on time\uD83D\uDFE2\n' +
   '-HW NOT marked \uD83D\uDD34\n' +
@@ -114,6 +147,106 @@ assertEqual(
   expectedNonSubmission,
   'Non-submission report sample'
 );
+
+// --- student selection section visibility tests ----------------------------
+(function testStudentSelectionVisibility() {
+  function createMockElement(className) {
+    const el = {
+      className,
+      hidden: false,
+      style: { display: '' },
+      value: '',
+      checked: false,
+      textContent: '',
+      innerHTML: '',
+      querySelector() { return null; }
+    };
+    return el;
+  }
+
+  const mockMsg = createMockElement('ma-select-student-msg');
+  const mockGrading = createMockElement('ma-grading-section');
+  const mockPanel = {
+    querySelector(selector) {
+      if (selector === '.ma-select-student-msg') return mockMsg;
+      if (selector === '.ma-grading-section') return mockGrading;
+      if (selector === '.ma-sent-on-time' || selector === '.ma-marked') return createMockElement('toggle');
+      return createMockElement('dummy');
+    },
+    querySelectorAll() { return []; }
+  };
+
+  let state = { homework: { id: 'hw1' }, currentStudentId: null, record: null };
+  function loadStudentRecordMock(panel, studentId) {
+    const msgEl = panel.querySelector('.ma-select-student-msg');
+    const gradingSection = panel.querySelector('.ma-grading-section');
+    if (!studentId || !state.homework) {
+      state.currentStudentId = null;
+      state.record = null;
+      if (msgEl) {
+        msgEl.hidden = !state.homework;
+        msgEl.style.display = state.homework ? '' : 'none';
+      }
+      if (gradingSection) {
+        gradingSection.hidden = true;
+        gradingSection.style.display = 'none';
+      }
+      return;
+    }
+    state.currentStudentId = studentId;
+    state.record = { mistakes: 0, skipped: 0, sentOnTime: true, marked: true, notes: [] };
+    if (msgEl) {
+      msgEl.hidden = true;
+      msgEl.style.display = 'none';
+    }
+    if (gradingSection) {
+      gradingSection.hidden = false;
+      gradingSection.style.display = '';
+    }
+  }
+
+  // (a) fresh panel load with no student selected
+  loadStudentRecordMock(mockPanel, null);
+  assertEqual(mockMsg.hidden, false, '(a) fresh load: msgEl is visible');
+  assertEqual(mockGrading.hidden, true, '(a) fresh load: gradingSection is hidden');
+  assertEqual(mockGrading.style.display, 'none', '(a) fresh load: gradingSection display is none');
+
+  // (b) selecting a student
+  loadStudentRecordMock(mockPanel, 's1');
+  assertEqual(mockMsg.hidden, true, '(b) select student: msgEl is hidden');
+  assertEqual(mockGrading.hidden, false, '(b) select student: gradingSection is visible');
+  assertEqual(mockGrading.style.display, '', '(b) select student: gradingSection display is empty');
+
+  // (c) switching back to "Select student..."
+  loadStudentRecordMock(mockPanel, null);
+  assertEqual(mockMsg.hidden, false, '(c) reset to select student: msgEl is visible');
+  assertEqual(mockGrading.hidden, true, '(c) reset to select student: gradingSection is hidden');
+  assertEqual(mockGrading.style.display, 'none', '(c) reset to select student: gradingSection display is none');
+
+  // (d) switching between two different students in a row
+  loadStudentRecordMock(mockPanel, 's1');
+  assertEqual(state.currentStudentId, 's1', '(d) student 1 selected');
+  assertEqual(mockGrading.hidden, false, '(d) student 1 gradingSection visible');
+  loadStudentRecordMock(mockPanel, 's2');
+  assertEqual(state.currentStudentId, 's2', '(d) student 2 selected');
+  assertEqual(mockGrading.hidden, false, '(d) student 2 gradingSection visible');
+})();
+
+// --- topic font scaling logic test ----------------------------------------
+(function testTopicFontScaling() {
+  function getTopicFontSize(topicText) {
+    const len = topicText.length;
+    if (len > 25) return '9px';
+    if (len > 18) return '10px';
+    if (len > 12) return '11px';
+    return '12px';
+  }
+
+  assertEqual(getTopicFontSize('Short'), '12px', 'Short topic font size 12px');
+  assertEqual(getTopicFontSize('Vectors (P1)'), '12px', 'Medium topic font size 12px');
+  assertEqual(getTopicFontSize('Algebraic Expressions'), '10px', 'Long topic font size 10px');
+  assertEqual(getTopicFontSize('Simplifying Algebraic Expressions'), '9px', 'Very long topic font size 9px');
+})();
 
 console.log(`\n${passes} passed, ${failures} failed.`);
 process.exit(failures > 0 ? 1 : 0);

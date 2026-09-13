@@ -26,6 +26,7 @@
     } else {
       lines.push(`*${student.name}*`);
     }
+    lines.push('');
 
     lines.push(`*${E.CIRCLE}${homework.topic}${E.CIRCLE}*`);
 

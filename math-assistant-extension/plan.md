@@ -200,6 +200,7 @@ including spacing/emoji placement, as found in the provided samples):
 ```
 🏆 *{name}* 🏆              ← only if isHighest, note the spaces around 🏆
 *{name}*                    ← otherwise
+
 *⭕️{topic}⭕️*
 -HW sent on time🟢          ← if sentOnTime
 -HW sent LATE🔴             ← if !sentOnTime
@@ -254,8 +255,9 @@ This is a documented assumption since the samples don't show a tie case.
 - On page load (and on Classroom's internal SPA navigation, detected via a
   `MutationObserver` on `document.title` / URL polling since Classroom is a
   single-page app and doesn't do full page reloads), the script:
-  1. Injects a small floating panel (fixed position, bottom-right, draggable
-     is a nice-to-have but not required) if one isn't already present.
+  1. Injects a small floating panel (defaults to bottom-right, draggable via header
+     bar with viewport boundary clamping and position persisted to storage) if one
+     isn't already present.
   2. Attempts a **best-effort** read of the currently displayed student's
      name from the Classroom DOM (common heading/selector patterns). This
      is wrapped in a try/catch and treated as unreliable — if it fails or
@@ -267,33 +269,35 @@ This is a documented assumption since the samples don't show a tie case.
   3. Loads the active homework session and, if one exists, the record for
      (session, detected/selected student), rendering current
      mistakes/skipped values.
-- Global `keydown` listener on `document` for `m`, `s`, `n`, `a`. Ignored
-  when `document.activeElement` is an `input`, `textarea`, `select`, or any
-  element with `isContentEditable === true` (covers Classroom's rich text
-  comment boxes), and ignored when a modifier key (Ctrl/Cmd/Alt) is held so
-  normal browser shortcuts aren't hijacked.
+- Global `keydown` listener attached in capture phase (`useCapture: true`) on `window`
+  for `m` / Shift+`m` (Mistakes +1 / -1), `s` / Shift+`s` (Skipped +1 / -1), `n` (Mistakes +0.5), `a` (Skipped +0.5), and Comma (physical key `event.code === 'Comma'`, bound to Undo).
+  To ensure shortcuts work when the teacher clicks inside embedded document viewers
+  (e.g., Google Drive/Docs PDF or image preview iframes in Classroom), the content script
+  is injected into all frames (`all_frames: true` matching `classroom.google.com`,
+  `drive.google.com`, `docs.google.com`). Subframes capture keystrokes and forward shortcut
+  events to the top window via `postMessage`. Ignored when `document.activeElement` (or any parent)
+  is an `input`, `textarea`, `select`, or `isContentEditable === true` (e.g., Classroom comment boxes),
+  and ignored when modifier keys (Ctrl/Cmd/Alt) are held.
 - All counter mutations write straight to `chrome.storage.local` through
   `shared/storage.js`, clamped at 0, in steps of 0.5.
-- Panel includes: student selector, mistakes counter (`-0.5` / value /
-  `+0.5` / `+1` quick button), skipped counter (same), number-of-questions
-  field (defaults to the active homework's value, editable per student if
-  needed), live-computed mark/percentage/understanding preview, sent-on-time
-  and marked toggles, common-notes checkboxes, and a "Copy Report" button
-  that generates + copies that one student's report immediately.
+- Panel includes: student selector, and a prompt message ("Select a student to start grading")
+  shown while no student is chosen. The grading controls section (mistakes/skipped counters with `-1`/`-0.5`/`+0.5`/`+1` buttons
+  and directly editable number inputs that automatically clamp to >= 0 and snap to 0.5 steps, sent-on-time / marked toggles,
+  live preview, common notes checkboxes, and "Copy Report" button) is hidden until a student is selected, and automatically reveals
+  with that student's pre-filled values. Undo (Comma key `,`) and keyboard shortcuts (`m`/`s`/`n`/`a` / Shift+`m`/`s`) remain fully active via keyboard without cluttering the panel UI.
 
 ## 9. Popup (`popup/popup.html` + `popup.js`)
 
-Three simple sections (no tabs framework needed, just stacked sections):
+Four simple sections (stacked):
 
-1. **Students** — add / rename / delete. Simple list with inline edit.
-2. **Homework Session** — create new (topic, number of questions) or select
+1. **Homework Session** — create new (topic, number of questions) or select
    an existing one as "active" (this is what the content-script panel reads
-   from). Pick which students are participating (defaults to the whole
-   student list).
-3. **Reports** — for the active homework: per-student status (recorded /
-   not yet recorded), a "Copy" button per student, a "Copy All (one after
-   another, clearly separated)" convenience button, and the non-submission
-   report with its own Copy button. Highest-grade tag is computed live.
+   from).
+2. **Reports** — for the active homework: per-student status (recorded /
+   not yet recorded), a "Copy" button per student, a "Copy All" convenience button,
+   and the non-submission report with its own Copy button.
+3. **Students** — add / rename / delete. Simple list with inline edit.
+4. **Common Notes** — add / edit / delete user-extensible report notes.
 
 ## 10. Testing Plan
 
@@ -330,7 +334,7 @@ lightweight pure-function checks:
 - Reliable automatic student-name detection tuned to Classroom's actual DOM
   (currently best-effort/fallback only).
 - Automatic detection of the current homework/assignment from the page.
-- More advanced keyboard shortcuts (undo, next-student, etc.).
+- Additional keyboard shortcuts (e.g. next-student navigation).
 - Export/import of student & report data (e.g. JSON backup).
 - Firefox/other browser packaging.
 - Richer report history/analytics.

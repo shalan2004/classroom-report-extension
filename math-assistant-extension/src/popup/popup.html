@@ -31,6 +31,23 @@
       </details>
     </section>
 
+    <section class="ma-section" id="section-reports">
+      <h2>Reports</h2>
+      <div id="reports-empty" class="ma-empty" hidden>
+        Select or create an active homework above to see reports here.
+      </div>
+      <div id="reports-body" hidden>
+        <div class="ma-field-row">
+          <button id="copy-all-btn" class="ma-btn-primary">Copy All Reports</button>
+        </div>
+        <ul id="reports-list" class="ma-list"></ul>
+
+        <h3>Didn't Submit</h3>
+        <pre id="non-submission-preview" class="ma-report-preview"></pre>
+        <button id="copy-non-submission-btn" class="ma-btn-secondary">Copy</button>
+      </div>
+    </section>
+
     <section class="ma-section" id="section-students">
       <h2>Students</h2>
       <div class="ma-field-row">
@@ -46,23 +63,6 @@
       <div class="ma-field-row">
         <input id="new-note-text" type="text" placeholder="New common note text (one line)" />
         <button id="add-note-btn" class="ma-btn-primary">Add</button>
-      </div>
-    </section>
-
-    <section class="ma-section" id="section-reports">
-      <h2>Reports</h2>
-      <div id="reports-empty" class="ma-empty" hidden>
-        Select or create an active homework above to see reports here.
-      </div>
-      <div id="reports-body" hidden>
-        <div class="ma-field-row">
-          <button id="copy-all-btn" class="ma-btn-primary">Copy All Reports</button>
-        </div>
-        <ul id="reports-list" class="ma-list"></ul>
-
-        <h3>Didn't Submit</h3>
-        <pre id="non-submission-preview" class="ma-report-preview"></pre>
-        <button id="copy-non-submission-btn" class="ma-btn-secondary">Copy</button>
       </div>
     </section>
   </main>
