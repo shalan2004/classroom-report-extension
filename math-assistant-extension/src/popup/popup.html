@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Math Assistant</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header class="ma-app-header">
+    <h1>Math Assistant</h1>
+  </header>
+
+  <main>
+    <section class="ma-section" id="section-homework">
+      <h2>Homework Session</h2>
+
+      <div class="ma-field-row">
+        <select id="homework-select"></select>
+        <button id="delete-homework-btn" class="ma-btn-danger" title="Delete selected homework">Delete</button>
+      </div>
+
+      <details class="ma-new-homework">
+        <summary>+ New homework</summary>
+        <div class="ma-field-row">
+          <input id="new-homework-topic" type="text" placeholder="Topic (exact text for the report)" />
+        </div>
+        <div class="ma-field-row">
+          <input id="new-homework-questions" type="number" min="1" step="1" placeholder="Number of questions" />
+          <button id="create-homework-btn" class="ma-btn-primary">Create &amp; activate</button>
+        </div>
+      </details>
+    </section>
+
+    <section class="ma-section" id="section-students">
+      <h2>Students</h2>
+      <div class="ma-field-row">
+        <input id="new-student-name" type="text" placeholder="Student name" />
+        <button id="add-student-btn" class="ma-btn-primary">Add</button>
+      </div>
+      <ul id="student-list" class="ma-list"></ul>
+    </section>
+
+    <section class="ma-section" id="section-notes">
+      <h2>Common Notes</h2>
+      <ul id="common-notes-list" class="ma-list"></ul>
+      <div class="ma-field-row">
+        <input id="new-note-text" type="text" placeholder="New common note text (one line)" />
+        <button id="add-note-btn" class="ma-btn-primary">Add</button>
+      </div>
+    </section>
+
+    <section class="ma-section" id="section-reports">
+      <h2>Reports</h2>
+      <div id="reports-empty" class="ma-empty" hidden>
+        Select or create an active homework above to see reports here.
+      </div>
+      <div id="reports-body" hidden>
+        <div class="ma-field-row">
+          <button id="copy-all-btn" class="ma-btn-primary">Copy All Reports</button>
+        </div>
+        <ul id="reports-list" class="ma-list"></ul>
+
+        <h3>Didn't Submit</h3>
+        <pre id="non-submission-preview" class="ma-report-preview"></pre>
+        <button id="copy-non-submission-btn" class="ma-btn-secondary">Copy</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="../shared/constants.js"></script>
+  <script src="../shared/calc.js"></script>
+  <script src="../shared/report.js"></script>
+  <script src="../shared/storage.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

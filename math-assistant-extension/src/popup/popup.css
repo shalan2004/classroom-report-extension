@@ -1,0 +1,193 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 360px;
+  max-height: 560px;
+  overflow-y: auto;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 13px;
+  color: #1a1a1a;
+  background: #fbfbfd;
+}
+
+.ma-app-header {
+  background: #2e5ae0;
+  color: #fff;
+  padding: 10px 14px;
+}
+
+.ma-app-header h1 {
+  font-size: 15px;
+  margin: 0;
+}
+
+main {
+  padding: 10px 14px 20px;
+}
+
+.ma-section {
+  margin-bottom: 16px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fff;
+}
+
+.ma-section h2 {
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+
+.ma-section h3 {
+  font-size: 12px;
+  margin: 10px 0 4px;
+  color: #475467;
+}
+
+.ma-field-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+
+.ma-field-row input,
+.ma-field-row select {
+  flex: 1;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  padding: 5px 7px;
+  font-size: 12px;
+}
+
+.ma-new-homework summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #2e5ae0;
+  margin: 6px 0;
+}
+
+.ma-btn-primary,
+.ma-btn-secondary,
+.ma-btn-danger {
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ma-btn-primary {
+  background: #2e5ae0;
+  color: #fff;
+}
+
+.ma-btn-primary:hover {
+  background: #24479c;
+}
+
+.ma-btn-secondary {
+  background: #eef1ff;
+  color: #2e5ae0;
+}
+
+.ma-btn-secondary:hover {
+  background: #dbe2ff;
+}
+
+.ma-btn-danger {
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.ma-btn-danger:hover {
+  background: #fee4e2;
+}
+
+.ma-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.ma-list-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #eaecf0;
+  border-radius: 6px;
+  padding: 5px 7px;
+}
+
+.ma-inline-edit {
+  flex: 1;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 3px 4px;
+  font-size: 12px;
+  background: transparent;
+}
+
+.ma-inline-edit:focus {
+  border-color: #d0d5dd;
+  background: #fff;
+}
+
+.ma-note-text {
+  flex: 1;
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 11.5px;
+  color: #344054;
+}
+
+.ma-report-row {
+  justify-content: space-between;
+}
+
+.ma-report-name {
+  flex: 1;
+}
+
+.ma-badge {
+  background: #eef1ff;
+  color: #2e5ae0;
+  border-radius: 20px;
+  padding: 2px 8px;
+  font-weight: 700;
+  font-size: 11.5px;
+}
+
+.ma-badge-muted {
+  background: #f2f4f7;
+  color: #667085;
+  font-weight: 500;
+}
+
+.ma-report-preview {
+  background: #f9fafb;
+  border: 1px solid #eaecf0;
+  border-radius: 6px;
+  padding: 8px;
+  white-space: pre-wrap;
+  font-size: 11.5px;
+  margin: 4px 0 8px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.ma-empty {
+  color: #667085;
+  font-size: 12px;
+  padding: 4px 0;
+}
