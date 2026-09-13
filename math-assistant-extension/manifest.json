@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Math Assistant Homework Reports",
+  "name": "Report Generator Homework Reports",
   "version": "1.0.0",
   "description": "Fast mistake/skipped counters and WhatsApp-ready report generation while grading homework in Google Classroom.",
   "icons": {

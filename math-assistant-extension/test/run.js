@@ -248,5 +248,61 @@ assertEqual(
   assertEqual(getTopicFontSize('Simplifying Algebraic Expressions'), '9px', 'Very long topic font size 9px');
 })();
 
+// --- panel position clamping logic test ------------------------------------
+(function testPanelPositionClamping() {
+  function clamp(panel, winWidth, winHeight) {
+    if (!panel || (!panel.style.left && !panel.style.top)) return;
+    const width = panel.offsetWidth || 240;
+    const height = panel.offsetHeight || 300;
+    const currentLeft = parseFloat(panel.style.left);
+    const currentTop = parseFloat(panel.style.top);
+    if (isNaN(currentLeft) || isNaN(currentTop)) return;
+    const maxLeft = Math.max(0, winWidth - width);
+    const maxTop = Math.max(0, winHeight - height);
+    panel.style.left = Math.max(0, Math.min(currentLeft, maxLeft)) + 'px';
+    panel.style.top = Math.max(0, Math.min(currentTop, maxTop)) + 'px';
+  }
+
+  const p = { style: { left: '1400px', top: '700px' }, offsetWidth: 240, offsetHeight: 300 };
+
+  // On wide screen 1920x1080: 1400 is valid (max 1680)
+  clamp(p, 1920, 1080);
+  assertEqual(p.style.left, '1400px', 'Wide screen left unchanged');
+  assertEqual(p.style.top, '700px', 'Wide screen top unchanged');
+
+  // Resized to 600x800 narrow window (3-way split screen): max left = 600 - 240 = 360px
+  clamp(p, 600, 800);
+  assertEqual(p.style.left, '360px', 'Narrow screen left clamped to 360px');
+  assertEqual(p.style.top, '500px', 'Narrow screen top clamped to 500px');
+})();
+
+// --- panel resizing bounds logic test --------------------------------------
+(function testPanelResizing() {
+  function resize(startW, startH, deltaX, deltaY, currentLeft, currentTop, winW, winH) {
+    const minW = 200;
+    const minH = 100;
+    const maxW = Math.max(minW, winW - currentLeft - 10);
+    const maxH = Math.max(minH, winH - currentTop - 10);
+    const newWidth = Math.max(minW, Math.min(startW + deltaX, maxW));
+    const newHeight = Math.max(minH, Math.min(startH + deltaY, maxH));
+    return { width: newWidth, height: newHeight };
+  }
+
+  // Normal drag enlarge
+  let r = resize(240, 300, 50, 50, 100, 100, 1920, 1080);
+  assertEqual(r.width, 290, 'Resized width enlarged to 290');
+  assertEqual(r.height, 350, 'Resized height enlarged to 350');
+
+  // Drag below minimum bounds
+  r = resize(240, 300, -200, -250, 100, 100, 1920, 1080);
+  assertEqual(r.width, 200, 'Resized width clamped to min 200');
+  assertEqual(r.height, 100, 'Resized height clamped to min 100');
+
+  // Drag past viewport edge
+  r = resize(240, 300, 1000, 1000, 1700, 900, 1920, 1080);
+  assertEqual(r.width, 210, 'Resized width clamped to fit viewport (210)');
+  assertEqual(r.height, 170, 'Resized height clamped to fit viewport (170)');
+})();
+
 console.log(`\n${passes} passed, ${failures} failed.`);
 process.exit(failures > 0 ? 1 : 0);

@@ -49,7 +49,7 @@
     root.id = PANEL_ID;
     root.innerHTML = `
       <div class="ma-header">
-        <span class="ma-title">Math Assistant</span>
+        <span class="ma-title">Report Generator</span>
         <button class="ma-collapse" title="Collapse/expand">&minus;</button>
       </div>
       <div class="ma-body">
@@ -113,7 +113,7 @@
 
           <div class="ma-notes-section">
             <button type="button" class="ma-notes-toggle-btn">
-              <span>Add Note? ❓</span>
+              <span>Add Note?</span>
               <span class="ma-notes-arrow">▶</span>
             </button>
             <div class="ma-notes" hidden></div>
@@ -123,6 +123,7 @@
           <div class="ma-copied-msg" hidden>Copied!</div>
         </div>
       </div>
+      <div class="ma-resize-handle" title="Resize panel"></div>
     `;
     document.body.appendChild(root);
     return root;
@@ -260,6 +261,7 @@
 
     await renderNotes(panel);
     await refreshPreview(panel);
+    clampPanelPosition(panel);
   }
 
   async function loadActiveHomework(panel) {
@@ -284,6 +286,7 @@
         gradingSection.style.display = 'none';
       }
       panel.querySelector('.ma-student-select').innerHTML = '';
+      clampPanelPosition(panel);
       return;
     }
     if (bodyEl) bodyEl.hidden = false;
@@ -307,6 +310,7 @@
     await renderStudentSelect(panel);
     const select = panel.querySelector('.ma-student-select');
     await loadStudentRecord(panel, select.value || null);
+    clampPanelPosition(panel);
   }
 
   // --- Mutations ----------------------------------------------------------
@@ -638,21 +642,120 @@
     });
   }
 
+  function clampPanelPosition(panel) {
+    if (!panel) return;
+    if (!panel.style.left && !panel.style.top) return;
+
+    const rect = panel.getBoundingClientRect();
+    const width = panel.offsetWidth || rect.width || 240;
+    const height = panel.offsetHeight || rect.height || 200;
+
+    const currentLeft = parseFloat(panel.style.left);
+    const currentTop = parseFloat(panel.style.top);
+
+    if (isNaN(currentLeft) || isNaN(currentTop)) return;
+
+    const maxLeft = Math.max(0, window.innerWidth - width);
+    const maxTop = Math.max(0, window.innerHeight - height);
+
+    const clampedLeft = Math.max(0, Math.min(currentLeft, maxLeft));
+    const clampedTop = Math.max(0, Math.min(currentTop, maxTop));
+
+    panel.style.left = clampedLeft + 'px';
+    panel.style.top = clampedTop + 'px';
+  }
+
   async function restorePanelPosition(panel) {
     try {
       const data = await chrome.storage.local.get(['panelPosition']);
       if (data && data.panelPosition) {
         const { top, left } = data.panelPosition;
-        const rect = panel.getBoundingClientRect();
-        const maxLeft = Math.max(0, window.innerWidth - (rect.width || 240));
-        const maxTop = Math.max(0, window.innerHeight - (rect.height || 300));
-        const clampedLeft = Math.max(0, Math.min(left, maxLeft));
-        const clampedTop = Math.max(0, Math.min(top, maxTop));
-
         panel.style.right = 'auto';
         panel.style.bottom = 'auto';
-        panel.style.left = clampedLeft + 'px';
-        panel.style.top = clampedTop + 'px';
+        panel.style.left = left + 'px';
+        panel.style.top = top + 'px';
+        clampPanelPosition(panel);
+      }
+    } catch (err) {
+      // Ignore storage errors
+    }
+  }
+
+  // --- Resizable panel ----------------------------------------------------
+  function makeResizable(panel) {
+    const handle = panel.querySelector('.ma-resize-handle');
+    if (!handle) return;
+
+    let isResizing = false;
+    let startX = 0;
+    let startY = 0;
+    let startWidth = 0;
+    let startHeight = 0;
+
+    handle.addEventListener('mousedown', (e) => {
+      isResizing = true;
+      const rect = panel.getBoundingClientRect();
+      startX = e.clientX;
+      startY = e.clientY;
+      startWidth = rect.width;
+      startHeight = rect.height;
+
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
+
+      const rect = panel.getBoundingClientRect();
+      const currentLeft = rect.left;
+      const currentTop = rect.top;
+
+      const minW = 200;
+      const minH = 100;
+      const maxW = Math.max(minW, window.innerWidth - currentLeft - 10);
+      const maxH = Math.max(minH, window.innerHeight - currentTop - 10);
+
+      const newWidth = Math.max(minW, Math.min(startWidth + deltaX, maxW));
+      const newHeight = Math.max(minH, Math.min(startHeight + deltaY, maxH));
+
+      panel.style.width = newWidth + 'px';
+      panel.style.height = newHeight + 'px';
+      panel.style.maxHeight = 'none';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!isResizing) return;
+      isResizing = false;
+
+      const rect = panel.getBoundingClientRect();
+      try {
+        chrome.storage.local.set({
+          panelSize: { width: Math.round(rect.width), height: Math.round(rect.height) },
+        });
+      } catch (err) {
+        // Storage unavailable
+      }
+    });
+  }
+
+  async function restorePanelSize(panel) {
+    try {
+      const data = await chrome.storage.local.get(['panelSize']);
+      if (data && data.panelSize) {
+        const { width, height } = data.panelSize;
+        if (width && width >= 200) {
+          const maxW = Math.max(200, window.innerWidth - 16);
+          panel.style.width = Math.min(width, maxW) + 'px';
+        }
+        if (height && height >= 100) {
+          const maxH = Math.max(100, window.innerHeight - 16);
+          panel.style.height = Math.min(height, maxH) + 'px';
+          panel.style.maxHeight = 'none';
+        }
       }
     } catch (err) {
       // Ignore storage errors
@@ -673,11 +776,18 @@
     state = { homework: null, record: null, currentStudentId: null };
     const panel = getPanel();
     makeDraggable(panel);
+    makeResizable(panel);
     await restorePanelPosition(panel);
+    await restorePanelSize(panel);
     wireEvents(panel);
     wireStorageSync(panel);
     watchNavigation(panel);
     await loadActiveHomework(panel);
+
+    window.addEventListener('resize', () => {
+      const panelEl = getPanel();
+      if (panelEl) clampPanelPosition(panelEl);
+    });
 
     window.addEventListener('message', (e) => {
       if (e.data && e.data.type === 'MA_KEYBOARD_SHORTCUT') {

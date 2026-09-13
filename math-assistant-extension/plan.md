@@ -1,4 +1,4 @@
-# Math Assistant Homework Reports — Implementation Plan
+# Report Generator Homework Reports — Implementation Plan
 
 This file is the single source of truth for the project. Any time an
 implementation decision changes a requirement or architecture choice made

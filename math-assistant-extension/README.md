@@ -1,4 +1,4 @@
-# Math Assistant Homework Reports
+# Report Generator Homework Reports
 
 A local Chrome/Chromium browser extension that speeds up grading homework
 in Google Classroom: quick mistake/skipped-question counters (mouse +
@@ -18,7 +18,7 @@ decisions — it's the source of truth for how this extension is built.
 3. Turn on **Developer mode** (toggle, top right).
 4. Click **Load unpacked**.
 5. Select this project's root folder (the one containing `manifest.json`).
-6. The "Math Assistant" extension icon should appear in your toolbar.
+6. The "Report Generator" extension icon should appear in your toolbar.
 
 ## Using it
 
@@ -66,7 +66,7 @@ dependencies. Edit files under `src/` directly.
 To pick up changes after editing:
 
 1. Go to `chrome://extensions`.
-2. Click the reload icon (⟳) on the Math Assistant card.
+2. Click the reload icon (⟳) on the Report Generator card.
 3. Reload any open Google Classroom tab (content scripts don't auto-reload
    the page for you).
 

@@ -4,6 +4,7 @@
   right: 16px;
   top: auto;
   width: 240px;
+  max-width: calc(100vw - 16px);
   max-height: 80vh;
   overflow-y: auto;
   z-index: 999999;
@@ -18,6 +19,24 @@
 
 #ma-panel-root * {
   box-sizing: border-box;
+}
+
+#ma-panel-root .ma-resize-handle {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+  z-index: 10;
+  user-select: none;
+  border-right: 2px solid #98a2b3;
+  border-bottom: 2px solid #98a2b3;
+  border-bottom-right-radius: 2px;
+}
+
+#ma-panel-root.ma-collapsed .ma-resize-handle {
+  display: none;
 }
 
 #ma-panel-root .ma-header {
