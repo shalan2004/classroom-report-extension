@@ -155,6 +155,12 @@ main {
   justify-content: space-between;
 }
 
+.ma-report-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .ma-report-name {
   flex: 1;
 }

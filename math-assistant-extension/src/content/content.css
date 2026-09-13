@@ -35,8 +35,27 @@
   border-bottom-right-radius: 2px;
 }
 
-#ma-panel-root.ma-collapsed .ma-resize-handle {
-  display: none;
+#ma-panel-root.ma-collapsed {
+  position: fixed !important;
+  bottom: 16px !important;
+  right: 16px !important;
+  top: auto !important;
+  left: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: hidden !important;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+}
+
+#ma-panel-root.ma-collapsed .ma-header {
+  border-radius: 9px;
+}
+
+#ma-panel-root.ma-collapsed .ma-resize-handle,
+#ma-panel-root.ma-collapsed .ma-body {
+  display: none !important;
 }
 
 #ma-panel-root .ma-header {

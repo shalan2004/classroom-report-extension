@@ -241,13 +241,9 @@ student's percentage, determines the highest grade, builds each student
 report + the non-submission block, and returns an array of `{studentId,
 text}` plus the non-submission text — used by the popup's bulk review UI.
 
-### Highest grade / tie handling
+### Perfect score trophy handling
 
-The student(s) with the strictly highest **rounded percentage** for the
-homework receive the 🏆 tag. If there is a tie for the highest percentage,
-**all** tied students receive the 🏆 tag (simplest, safest interpretation —
-no student is unfairly singled out, and no arbitrary tie-break is invented).
-This is a documented assumption since the samples don't show a tie case.
+The trophy 🏆 tag is awarded exclusively to student(s) with an exact **100% score** for the homework. Any score below 100% (e.g. 99%, 95%, 80%) does not receive a trophy.
 
 ## 8. Google Classroom Integration (`content/content.js`)
 

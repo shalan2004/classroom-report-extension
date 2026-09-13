@@ -11,9 +11,7 @@
 
   function generateStudentReport(student, homework, record, opts) {
     opts = opts || {};
-    const isHighest = !!opts.isHighest;
-    const commonNotes = opts.commonNotes || []; // array of {id, text} in selection order
-
+    const commonNotes = opts.commonNotes || [];
     const mistakes = record.mistakes || 0;
     const skipped = record.skipped || 0;
     const pct = calc.percentage(homework.numQuestions, mistakes, skipped);
@@ -21,7 +19,8 @@
 
     const lines = [];
 
-    if (isHighest) {
+    const isPerfect = pct === 100;
+    if (isPerfect) {
       lines.push(`${E.TROPHY} *${student.name}* ${E.TROPHY}`);
     } else {
       lines.push(`*${student.name}*`);

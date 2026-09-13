@@ -194,11 +194,15 @@
           </li>`;
         }
         const r = byStudentId[s.id];
+        const trophyPrefix = r && r.pct === 100 ? `${window.MA.EMOJI.TROPHY} ` : '';
         return `
         <li class="ma-list-item ma-report-row">
-          <span class="ma-report-name">${escapeHtml(s.name)}</span>
+          <span class="ma-report-name">${trophyPrefix}${escapeHtml(s.name)}</span>
           <span class="ma-badge">${r.pct}%</span>
-          <button class="ma-btn-secondary ma-copy-report" data-id="${s.id}">Copy</button>
+          <div class="ma-report-actions">
+            <button class="ma-btn-secondary ma-copy-report" data-id="${s.id}">Copy</button>
+            <button class="ma-btn-danger ma-delete-report" data-id="${s.id}" title="Delete report">Delete</button>
+          </div>
         </li>`;
       })
       .join('') || '<li class="ma-empty">No students yet.</li>';
@@ -213,6 +217,19 @@
           btn.textContent = 'Copied!';
           setTimeout(() => (btn.textContent = 'Copy'), 1200);
         }
+      });
+    });
+
+    els.reportsList.querySelectorAll('.ma-delete-report').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const studentId = btn.dataset.id;
+        const student = students.find((s) => s.id === studentId);
+        const name = student ? student.name : 'this student';
+        if (!confirm(`Delete report for ${name}? They will be marked as unsubmitted again.`)) {
+          return;
+        }
+        await storage.deleteRecord(homework.id, studentId);
+        await renderReports();
       });
     });
 

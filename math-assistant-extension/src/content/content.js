@@ -47,10 +47,11 @@
   function buildPanel() {
     const root = document.createElement('div');
     root.id = PANEL_ID;
+    root.className = 'ma-collapsed';
     root.innerHTML = `
       <div class="ma-header">
         <span class="ma-title">Report Generator</span>
-        <button class="ma-collapse" title="Collapse/expand">&minus;</button>
+        <button class="ma-collapse" title="Collapse/expand">+</button>
       </div>
       <div class="ma-body">
         <div class="ma-homework-info">
@@ -199,14 +200,37 @@
 
   async function renderStudentSelect(panel) {
     const select = panel.querySelector('.ma-student-select');
+    if (!select) return;
     const students = await storage.getStudents();
     const detectedName = detectStudentNameFromPage();
 
+    let records = {};
+    if (state.homework) {
+      records = await storage.getRecordsForHomework(state.homework.id);
+    }
+
+    const currentVal = select.value;
     select.innerHTML =
       '<option value="">Select student…</option>' +
-      students.map((s) => `<option value="${s.id}">${s.name}</option>`).join('');
+      students
+        .map((s) => {
+          const rec = records[s.id];
+          let trophyPrefix = '';
+          if (rec && state.homework) {
+            const pct = calc.percentage(
+              state.homework.numQuestions,
+              rec.mistakes || 0,
+              rec.skipped || 0
+            );
+            if (pct === 100) {
+              trophyPrefix = `${EMOJI.TROPHY} `;
+            }
+          }
+          return `<option value="${s.id}">${trophyPrefix}${s.name}</option>`;
+        })
+        .join('');
 
-    let selectedId = state.currentStudentId;
+    let selectedId = state.currentStudentId || currentVal;
     if (!selectedId && detectedName) {
       const match = students.find(
         (s) => s.name.trim().toLowerCase() === detectedName.trim().toLowerCase()
@@ -215,6 +239,8 @@
     }
     if (selectedId) select.value = selectedId;
   }
+
+  let currentLoadSeq = 0;
 
   async function loadStudentRecord(panel, studentId) {
     const msgEl = panel.querySelector('.ma-select-student-msg');
@@ -233,8 +259,17 @@
       }
       return;
     }
+
+    const seq = ++currentLoadSeq;
+    const homeworkId = state.homework.id;
     state.currentStudentId = studentId;
-    state.record = await storage.getRecord(state.homework.id, studentId);
+
+    const rec = await storage.getRecord(homeworkId, studentId);
+    if (seq !== currentLoadSeq || state.currentStudentId !== studentId) {
+      return;
+    }
+
+    state.record = rec;
 
     if (msgEl) {
       msgEl.hidden = true;
@@ -261,6 +296,7 @@
 
     await renderNotes(panel);
     await refreshPreview(panel);
+    await renderStudentSelect(panel);
     clampPanelPosition(panel);
   }
 
@@ -275,6 +311,8 @@
     const gradingSection = panel.querySelector('.ma-grading-section');
 
     if (!state.homework) {
+      state.currentStudentId = null;
+      state.record = null;
       if (bodyEl) bodyEl.hidden = true;
       if (infoEl) infoEl.hidden = true;
       if (msgEl) {
@@ -315,7 +353,9 @@
 
   // --- Mutations ----------------------------------------------------------
   async function mutateCounter(panel, field, delta) {
-    if (!state.record || !state.currentStudentId) return;
+    if (!state.record || !state.currentStudentId || !state.homework) return;
+    if (state.record.studentId !== state.currentStudentId || state.record.homeworkId !== state.homework.id) return;
+
     const prevValue = state.record[field];
     const next = calc.clampCounter(prevValue + delta);
     if (next === prevValue) return;
@@ -330,11 +370,14 @@
     state.record[field] = next;
     renderCounter(panel, field, next);
     await refreshPreview(panel);
-    await storage.saveRecord(state.record);
+    state.record = await storage.saveRecord(state.record);
+    await renderStudentSelect(panel);
   }
 
   async function setCounterDirect(panel, field, rawValue) {
-    if (!state.record || !state.currentStudentId) return;
+    if (!state.record || !state.currentStudentId || !state.homework) return;
+    if (state.record.studentId !== state.currentStudentId || state.record.homeworkId !== state.homework.id) return;
+
     const num = Number(rawValue);
     const prevValue = state.record[field];
     const next = calc.clampCounter(isNaN(num) ? 0 : num);
@@ -351,77 +394,83 @@
 
     state.record[field] = next;
     await refreshPreview(panel);
-    await storage.saveRecord(state.record);
+    state.record = await storage.saveRecord(state.record);
+    await renderStudentSelect(panel);
   }
 
   async function undoLastAction(panel) {
-    if (!state || !state.record || !state.currentStudentId) return;
+    if (!state || !state.record || !state.currentStudentId || !state.homework) return;
+    if (state.record.studentId !== state.currentStudentId || state.record.homeworkId !== state.homework.id) return;
+
     for (let i = undoHistory.length - 1; i >= 0; i--) {
       if (undoHistory[i].studentId === state.currentStudentId) {
         const action = undoHistory.splice(i, 1)[0];
         state.record[action.field] = action.prevValue;
         renderCounter(panel, action.field, action.prevValue);
         await refreshPreview(panel);
-        await storage.saveRecord(state.record);
+        state.record = await storage.saveRecord(state.record);
+        await renderStudentSelect(panel);
         break;
       }
     }
   }
 
   async function toggleField(panel, field, value) {
-    if (!state.record) return;
+    if (!state.record || !state.currentStudentId || !state.homework) return;
+    if (state.record.studentId !== state.currentStudentId || state.record.homeworkId !== state.homework.id) return;
+
     state.record[field] = value;
-    await storage.saveRecord(state.record);
+    state.record = await storage.saveRecord(state.record);
   }
 
   async function toggleNote(panel, noteId, checked) {
-    if (!state.record) return;
-    const set = new Set(state.record.notes);
+    if (!state.record || !state.currentStudentId || !state.homework) return;
+    if (state.record.studentId !== state.currentStudentId || state.record.homeworkId !== state.homework.id) return;
+
+    const set = new Set(state.record.notes || []);
     if (checked) set.add(noteId);
     else set.delete(noteId);
     state.record.notes = Array.from(set);
-    await storage.saveRecord(state.record);
+    state.record = await storage.saveRecord(state.record);
   }
 
   async function copyReport(panel) {
-    if (!state.homework || !state.currentStudentId) return;
+    if (!state.homework || !state.currentStudentId || !state.record) return;
+    if (state.record.studentId !== state.currentStudentId || state.record.homeworkId !== state.homework.id) return;
+
+    // Explicitly persist record before copying text
+    state.record = await storage.saveRecord(state.record);
+
     const students = await storage.getStudents();
     const student = students.find((s) => s.id === state.currentStudentId);
     if (!student) return;
 
     const allNotes = await storage.getCommonNotes();
     const notesById = Object.fromEntries(allNotes.map((n) => [n.id, n]));
-    const selectedNotes = state.record.notes.map((id) => notesById[id]).filter(Boolean);
-
-    // Determine highest grade across everyone recorded for this homework
-    // so the trophy tag is accurate even from the quick panel.
-    const records = await storage.getRecordsForHomework(state.homework.id);
-    let highestPct = -Infinity;
-    for (const rec of Object.values(records)) {
-      const pct = calc.percentage(state.homework.numQuestions, rec.mistakes, rec.skipped);
-      if (pct > highestPct) highestPct = pct;
-    }
-    const myPct = calc.percentage(
-      state.homework.numQuestions,
-      state.record.mistakes,
-      state.record.skipped
-    );
+    const selectedNotes = (state.record.notes || []).map((id) => notesById[id]).filter(Boolean);
 
     const text = report.generateStudentReport(student, state.homework, state.record, {
-      isHighest: myPct === highestPct,
       commonNotes: selectedNotes,
     });
 
     await navigator.clipboard.writeText(text);
     const msg = panel.querySelector('.ma-copied-msg');
-    msg.hidden = false;
-    setTimeout(() => (msg.hidden = true), 1500);
+    if (msg) {
+      msg.hidden = false;
+      setTimeout(() => (msg.hidden = true), 1500);
+    }
+    await renderStudentSelect(panel);
   }
 
   // --- Event wiring -------------------------------------------------------
   function wireEvents(panel) {
-    panel.querySelector('.ma-collapse').addEventListener('click', () => {
-      panel.classList.toggle('ma-collapsed');
+    const collapseBtn = panel.querySelector('.ma-collapse');
+    collapseBtn.addEventListener('click', () => {
+      const isCollapsed = panel.classList.toggle('ma-collapsed');
+      collapseBtn.innerHTML = isCollapsed ? '+' : '&minus;';
+      if (!isCollapsed) {
+        clampPanelPosition(panel);
+      }
     });
 
     panel.querySelector('.ma-student-select').addEventListener('change', (e) => {
@@ -585,6 +634,7 @@
 
     header.addEventListener('mousedown', (e) => {
       if (e.target.closest('button, select, input')) return;
+      if (panel.classList.contains('ma-collapsed')) return;
 
       isDragging = true;
       header.style.cursor = 'grabbing';
@@ -644,6 +694,7 @@
 
   function clampPanelPosition(panel) {
     if (!panel) return;
+    if (panel.classList.contains('ma-collapsed')) return;
     if (!panel.style.left && !panel.style.top) return;
 
     const rect = panel.getBoundingClientRect();
@@ -777,7 +828,6 @@
     const panel = getPanel();
     makeDraggable(panel);
     makeResizable(panel);
-    await restorePanelPosition(panel);
     await restorePanelSize(panel);
     wireEvents(panel);
     wireStorageSync(panel);

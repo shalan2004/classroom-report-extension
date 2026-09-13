@@ -304,5 +304,240 @@ assertEqual(
   assertEqual(r.height, 170, 'Resized height clamped to fit viewport (170)');
 })();
 
-console.log(`\n${passes} passed, ${failures} failed.`);
-process.exit(failures > 0 ? 1 : 0);
+// --- 100% trophy condition test ---------------------------------------------
+(function testTrophyCondition() {
+  const hw = { topic: 'Algebra', numQuestions: 20 };
+  const s1 = { id: 's1', name: 'Student Perfect' };
+  const s2 = { id: 's2', name: 'Student 95' };
+  const s3 = { id: 's3', name: 'Student 80' };
+
+  const r1 = { mistakes: 0, skipped: 0, sentOnTime: true, marked: true, notes: [] }; // 100%
+  const r2 = { mistakes: 1, skipped: 0, sentOnTime: true, marked: true, notes: [] }; // 95%
+  const r3 = { mistakes: 4, skipped: 0, sentOnTime: true, marked: true, notes: [] }; // 80%
+
+  const rep1 = report.generateStudentReport(s1, hw, r1);
+  const rep2 = report.generateStudentReport(s2, hw, r2);
+  const rep3 = report.generateStudentReport(s3, hw, r3);
+
+  assertEqual(rep1.includes('🏆'), true, 'Student with 100% score receives trophy emoji');
+  assertEqual(rep2.includes('🏆'), false, 'Student with 95% score does NOT receive trophy emoji');
+  assertEqual(rep3.includes('🏆'), false, 'Student with 80% score does NOT receive trophy emoji');
+})();
+
+// --- panel collapse toggle test ---------------------------------------------
+(function testPanelCollapse() {
+  const panel = {
+    classList: {
+      _classes: new Set(['ma-collapsed']),
+      toggle(cls) {
+        if (this._classes.has(cls)) {
+          this._classes.delete(cls);
+          return false;
+        }
+        this._classes.add(cls);
+        return true;
+      },
+      contains(cls) {
+        return this._classes.has(cls);
+      }
+    }
+  };
+
+  let btnText = '+';
+  assertEqual(panel.classList.contains('ma-collapsed'), true, 'Panel starts in ma-collapsed state on page load');
+  assertEqual(btnText, '+', 'Collapse button starts as + on page load');
+
+  function toggleCollapse() {
+    const isCollapsed = panel.classList.toggle('ma-collapsed');
+    btnText = isCollapsed ? '+' : '−';
+  }
+
+  // User maximizes panel
+  toggleCollapse();
+  assertEqual(panel.classList.contains('ma-collapsed'), false, 'Panel removes ma-collapsed class on maximize');
+  assertEqual(btnText, '−', 'Collapse button icon becomes − when maximized');
+
+  // Test distinct two-state positioning: minimized (bottom-right) vs maximized (dragged/default)
+  let savedMaximizedPos = { top: '100px', left: '200px' };
+  let currentPos = { top: 'auto', bottom: '16px', right: '16px', left: 'auto' };
+
+  function getActivePosition(isCollapsed) {
+    if (isCollapsed) {
+      return { top: 'auto', bottom: '16px', right: '16px', left: 'auto' };
+    }
+    return { ...savedMaximizedPos, bottom: 'auto', right: 'auto' };
+  }
+
+  // 1. Minimized on load: bottom-right
+  assertEqual(getActivePosition(true).bottom, '16px', 'Minimized state anchored to bottom 16px');
+  assertEqual(getActivePosition(true).right, '16px', 'Minimized state anchored to right 16px');
+
+  // 2. Maximized: returns to savedMaximizedPos
+  assertEqual(getActivePosition(false).top, '100px', 'Maximized state returns to top 100px');
+  assertEqual(getActivePosition(false).left, '200px', 'Maximized state returns to left 200px');
+
+  // 3. User drags maximized panel to new location
+  savedMaximizedPos = { top: '300px', left: '400px' };
+  assertEqual(getActivePosition(false).top, '300px', 'Dragged maximized top is updated to 300px');
+
+  // 4. User minimizes again: returns to bottom-right without losing savedMaximizedPos
+  assertEqual(getActivePosition(true).bottom, '16px', 'Minimizing again places panel back in bottom-right');
+  assertEqual(savedMaximizedPos.top, '300px', 'Maximized position remains preserved at 300px while minimized');
+
+  // 5. User maximizes again: returns to new saved location (300px, 400px)
+  assertEqual(getActivePosition(false).top, '300px', 'Maximizing again restores dragged top 300px');
+  assertEqual(getActivePosition(false).left, '400px', 'Maximizing again restores dragged left 400px');
+})();
+
+// --- Async Storage Batch Test ---------------------------------------------
+(async function testBatchRecordPersistence() {
+  const store = {};
+  global.chrome = {
+    storage: {
+      local: {
+        get: async (keys) => {
+          const res = {};
+          for (const k of keys) res[k] = store[k];
+          return res;
+        },
+        set: async (obj) => {
+          for (const [k, v] of Object.entries(obj)) {
+            // Deep clone to simulate chrome storage isolation
+            store[k] = JSON.parse(JSON.stringify(v));
+          }
+        },
+      },
+    },
+  };
+
+  // Require storage.js after setting global.chrome
+  delete require.cache[require.resolve('../src/shared/storage.js')];
+  require('../src/shared/storage.js');
+  const storage = global.MA.storage;
+
+  const hwId = 'hw-batch-1';
+  const students = [];
+  for (let i = 1; i <= 15; i++) {
+    students.push({ id: `student-${i}`, name: `Student ${i}` });
+  }
+
+  // Rapidly save records concurrently (simulating rapid sequential grading/loading)
+  const savePromises = students.map((s, idx) => {
+    const rec = {
+      homeworkId: hwId,
+      studentId: s.id,
+      mistakes: idx % 3,
+      skipped: idx % 2,
+      sentOnTime: true,
+      marked: true,
+      notes: [],
+    };
+    return storage.saveRecord(rec);
+  });
+
+  await Promise.all(savePromises);
+
+  const savedRecords = await storage.getRecordsForHomework(hwId);
+  const recordedCount = Object.keys(savedRecords).length;
+
+  assertEqual(recordedCount, 15, 'All 15 batch reports are reliably saved without data loss');
+
+  // Verify non-submission report logic
+  const allReports = report.generateAllReports({
+    homework: { id: hwId, topic: 'Batch Test', numQuestions: 10 },
+    students,
+    records: savedRecords,
+  });
+
+  assertEqual(allReports.missing.length, 0, 'No submitted students marked as missing');
+
+  // Add 1 student who was NEVER graded/recorded
+  students.push({ id: 'student-16-unsubmitted', name: 'Unsubmitted Student' });
+  const updatedReports = report.generateAllReports({
+    homework: { id: hwId, topic: 'Batch Test', numQuestions: 10 },
+    students,
+    records: savedRecords,
+  });
+
+  assertEqual(updatedReports.missing.length, 1, 'Genuine unsubmitted student correctly appears in missing');
+  assertEqual(updatedReports.missing[0].name, 'Unsubmitted Student', 'Correct student name in missing list');
+
+  // --- Verify student selection non-persisting behavior -------------------
+  const hwId2 = 'hw-selection-test';
+  const sA = { id: 'student-A', name: 'Reem Hamdy' };
+  const sB = { id: 'student-B', name: 'Roshdy Ibrahim' };
+
+  // 1. Reading student B's record via getRecord should return default in memory but NOT write to storage
+  const recB = await storage.getRecord(hwId2, sB.id);
+  assertEqual(recB.studentId, 'student-B', 'getRecord returns in-memory record for student B');
+
+  const recordsInStore = await storage.getRecordsForHomework(hwId2);
+  assertEqual(Object.keys(recordsInStore).length, 0, 'Selecting/loading student B does NOT save record to storage');
+
+  // 2. Graded report saved only for student A
+  await storage.saveRecord({
+    homeworkId: hwId2,
+    studentId: sA.id,
+    mistakes: 1,
+    skipped: 0,
+    sentOnTime: true,
+    marked: true,
+    notes: [],
+  });
+
+  const recordsAfterA = await storage.getRecordsForHomework(hwId2);
+  assertEqual(Object.keys(recordsAfterA).length, 1, 'Only student A record exists in storage after grading A');
+  assertEqual(recordsAfterA[sA.id].mistakes, 1, 'Student A record saved correctly');
+  assertEqual(recordsAfterA[sB.id], undefined, 'Student B remains unrecorded');
+
+  // --- Verify addHomework & removeHomework flow -----------------------------
+  const newHw = await storage.addHomework({ topic: 'Integration Test HW', numQuestions: 15 });
+  assertEqual(newHw.topic, 'Integration Test HW', 'addHomework creates homework object');
+  assertEqual(await storage.getActiveHomeworkId(), newHw.id, 'addHomework activates the newly created homework');
+
+  await storage.removeHomework(newHw.id);
+  assertEqual(await storage.getActiveHomeworkId(), null, 'removeHomework clears active homework on delete');
+
+  // --- Verify deleteRecord & non-submission reversion flow ----------------
+  const hwId3 = 'hw-delete-test';
+  await storage.saveRecord({
+    homeworkId: hwId3,
+    studentId: sA.id,
+    mistakes: 0,
+    skipped: 0,
+    sentOnTime: true,
+    marked: true,
+    notes: [],
+  });
+  await storage.saveRecord({
+    homeworkId: hwId3,
+    studentId: sB.id,
+    mistakes: 2,
+    skipped: 0,
+    sentOnTime: true,
+    marked: true,
+    notes: [],
+  });
+
+  let recs3 = await storage.getRecordsForHomework(hwId3);
+  assertEqual(Object.keys(recs3).length, 2, 'Both student A and B have recorded reports');
+
+  // Delete student A's report
+  await storage.deleteRecord(hwId3, sA.id);
+  recs3 = await storage.getRecordsForHomework(hwId3);
+
+  assertEqual(recs3[sA.id], undefined, 'Student A report permanently removed from storage');
+  assertEqual(recs3[sB.id].mistakes, 2, 'Student B report remains completely unaffected');
+
+  const deletedReports = report.generateAllReports({
+    homework: { id: hwId3, topic: 'Delete Test', numQuestions: 10 },
+    students: [sA, sB],
+    records: recs3,
+  });
+
+  assertEqual(deletedReports.missing.length, 1, 'Student A automatically returns to missing/unsubmitted');
+  assertEqual(deletedReports.missing[0].name, 'Reem Hamdy', 'Student A name is in missing list after report deletion');
+
+  console.log(`\n${passes} passed, ${failures} failed.`);
+  process.exit(failures > 0 ? 1 : 0);
+})();

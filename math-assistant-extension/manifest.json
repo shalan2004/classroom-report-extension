@@ -22,16 +22,12 @@
   },
   "permissions": ["storage"],
   "host_permissions": [
-    "https://classroom.google.com/*",
-    "https://drive.google.com/*",
-    "https://docs.google.com/*"
+    "https://classroom.google.com/*"
   ],
   "content_scripts": [
     {
       "matches": [
-        "https://classroom.google.com/*",
-        "https://drive.google.com/*",
-        "https://docs.google.com/*"
+        "https://classroom.google.com/*"
       ],
       "all_frames": true,
       "js": [

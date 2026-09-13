@@ -37,6 +37,15 @@
     }
   }
 
+  // --- Storage operation queue (mutex) -------------------------------------
+  let storageQueue = Promise.resolve();
+
+  function withStorageLock(fn) {
+    const next = storageQueue.then(fn);
+    storageQueue = next.catch(() => {});
+    return next;
+  }
+
   // --- Students -------------------------------------------------------
   async function getStudents() {
     const data = await chrome.storage.local.get([KEYS.STUDENTS]);
@@ -44,23 +53,29 @@
   }
 
   async function addStudent(name) {
-    const students = await getStudents();
-    const student = { id: uuid(), name: name.trim() };
-    students.push(student);
-    await chrome.storage.local.set({ [KEYS.STUDENTS]: students });
-    return student;
+    return withStorageLock(async () => {
+      const students = await getStudents();
+      const student = { id: uuid(), name: name.trim() };
+      students.push(student);
+      await chrome.storage.local.set({ [KEYS.STUDENTS]: students });
+      return student;
+    });
   }
 
   async function renameStudent(id, name) {
-    const students = await getStudents();
-    const s = students.find((x) => x.id === id);
-    if (s) s.name = name.trim();
-    await chrome.storage.local.set({ [KEYS.STUDENTS]: students });
+    return withStorageLock(async () => {
+      const students = await getStudents();
+      const s = students.find((x) => x.id === id);
+      if (s) s.name = name.trim();
+      await chrome.storage.local.set({ [KEYS.STUDENTS]: students });
+    });
   }
 
   async function removeStudent(id) {
-    const students = (await getStudents()).filter((x) => x.id !== id);
-    await chrome.storage.local.set({ [KEYS.STUDENTS]: students });
+    return withStorageLock(async () => {
+      const students = (await getStudents()).filter((x) => x.id !== id);
+      await chrome.storage.local.set({ [KEYS.STUDENTS]: students });
+    });
   }
 
   // --- Homeworks --------------------------------------------------------
@@ -70,40 +85,50 @@
   }
 
   async function addHomework({ topic, numQuestions }) {
-    const homeworks = await getHomeworks();
-    const homework = {
-      id: uuid(),
-      topic: topic.trim(),
-      numQuestions: Number(numQuestions),
-      createdAt: Date.now(),
-    };
-    homeworks.push(homework);
-    await chrome.storage.local.set({ [KEYS.HOMEWORKS]: homeworks });
-    await setActiveHomeworkId(homework.id);
-    return homework;
+    return withStorageLock(async () => {
+      const homeworks = await getHomeworks();
+      const homework = {
+        id: uuid(),
+        topic: topic.trim(),
+        numQuestions: Number(numQuestions),
+        createdAt: Date.now(),
+      };
+      homeworks.push(homework);
+      await chrome.storage.local.set({
+        [KEYS.HOMEWORKS]: homeworks,
+        [KEYS.ACTIVE_HOMEWORK_ID]: homework.id,
+      });
+      return homework;
+    });
   }
 
   async function updateHomework(id, patch) {
-    const homeworks = await getHomeworks();
-    const hw = homeworks.find((h) => h.id === id);
-    if (hw) Object.assign(hw, patch);
-    await chrome.storage.local.set({ [KEYS.HOMEWORKS]: homeworks });
+    return withStorageLock(async () => {
+      const homeworks = await getHomeworks();
+      const hw = homeworks.find((h) => h.id === id);
+      if (hw) Object.assign(hw, patch);
+      await chrome.storage.local.set({ [KEYS.HOMEWORKS]: homeworks });
+    });
   }
 
   async function removeHomework(id) {
-    const homeworks = (await getHomeworks()).filter((h) => h.id !== id);
-    await chrome.storage.local.set({ [KEYS.HOMEWORKS]: homeworks });
-
-    // Clean up any records tied to the deleted homework.
-    const data = await chrome.storage.local.get([KEYS.RECORDS]);
-    const records = data[KEYS.RECORDS] || {};
-    for (const key of Object.keys(records)) {
-      if (key.startsWith(id + ':')) delete records[key];
-    }
-    await chrome.storage.local.set({ [KEYS.RECORDS]: records });
-
-    const active = await getActiveHomeworkId();
-    if (active === id) await setActiveHomeworkId(null);
+    return withStorageLock(async () => {
+      const homeworks = (await getHomeworks()).filter((h) => h.id !== id);
+      const data = await chrome.storage.local.get([KEYS.RECORDS, KEYS.ACTIVE_HOMEWORK_ID]);
+      const records = data[KEYS.RECORDS] || {};
+      for (const key of Object.keys(records)) {
+        if (key.startsWith(id + ':')) delete records[key];
+      }
+      const active = data[KEYS.ACTIVE_HOMEWORK_ID] || null;
+      const updates = {
+        [KEYS.HOMEWORKS]: homeworks,
+        [KEYS.RECORDS]: records,
+      };
+      if (active === id) {
+        updates[KEYS.ACTIVE_HOMEWORK_ID] = null;
+      }
+      await chrome.storage.local.set(updates);
+    });
   }
 
   async function getActiveHomeworkId() {
@@ -112,7 +137,9 @@
   }
 
   async function setActiveHomeworkId(id) {
-    await chrome.storage.local.set({ [KEYS.ACTIVE_HOMEWORK_ID]: id });
+    return withStorageLock(async () => {
+      await chrome.storage.local.set({ [KEYS.ACTIVE_HOMEWORK_ID]: id });
+    });
   }
 
   // --- Records ----------------------------------------------------------
@@ -151,31 +178,56 @@
   }
 
   async function getRecord(homeworkId, studentId) {
+    if (!homeworkId || !studentId) return null;
     const all = await getRecords();
-    return (
-      all[recordKey(homeworkId, studentId)] ||
-      defaultRecord(homeworkId, studentId)
-    );
+    const existing = all[recordKey(homeworkId, studentId)];
+    if (existing) {
+      return { ...existing };
+    }
+    return defaultRecord(homeworkId, studentId);
   }
 
   async function saveRecord(record) {
-    const all = await getRecords();
-    record.updatedAt = Date.now();
-    all[recordKey(record.homeworkId, record.studentId)] = record;
-    await chrome.storage.local.set({ [KEYS.RECORDS]: all });
-    return record;
+    if (!record || !record.homeworkId || !record.studentId) return record;
+    return withStorageLock(async () => {
+      const all = await getRecords();
+      const updated = {
+        ...record,
+        updatedAt: Date.now(),
+      };
+      all[recordKey(record.homeworkId, record.studentId)] = updated;
+      await chrome.storage.local.set({ [KEYS.RECORDS]: all });
+      return updated;
+    });
   }
 
   async function updateRecord(homeworkId, studentId, patch) {
-    const record = await getRecord(homeworkId, studentId);
-    Object.assign(record, patch);
-    return saveRecord(record);
+    if (!homeworkId || !studentId) return null;
+    return withStorageLock(async () => {
+      const all = await getRecords();
+      const key = recordKey(homeworkId, studentId);
+      const existing = all[key] || defaultRecord(homeworkId, studentId);
+      const updated = {
+        ...existing,
+        ...patch,
+        updatedAt: Date.now(),
+      };
+      all[key] = updated;
+      await chrome.storage.local.set({ [KEYS.RECORDS]: all });
+      return updated;
+    });
   }
 
   async function deleteRecord(homeworkId, studentId) {
-    const all = await getRecords();
-    delete all[recordKey(homeworkId, studentId)];
-    await chrome.storage.local.set({ [KEYS.RECORDS]: all });
+    if (!homeworkId || !studentId) return;
+    return withStorageLock(async () => {
+      const all = await getRecords();
+      const key = recordKey(homeworkId, studentId);
+      if (all[key]) {
+        delete all[key];
+        await chrome.storage.local.set({ [KEYS.RECORDS]: all });
+      }
+    });
   }
 
   // --- Common notes -------------------------------------------------------
@@ -185,16 +237,20 @@
   }
 
   async function addCommonNote(text) {
-    const notes = await getCommonNotes();
-    const note = { id: uuid(), text };
-    notes.push(note);
-    await chrome.storage.local.set({ [KEYS.COMMON_NOTES]: notes });
-    return note;
+    return withStorageLock(async () => {
+      const notes = await getCommonNotes();
+      const note = { id: uuid(), text };
+      notes.push(note);
+      await chrome.storage.local.set({ [KEYS.COMMON_NOTES]: notes });
+      return note;
+    });
   }
 
   async function removeCommonNote(id) {
-    const notes = (await getCommonNotes()).filter((n) => n.id !== id);
-    await chrome.storage.local.set({ [KEYS.COMMON_NOTES]: notes });
+    return withStorageLock(async () => {
+      const notes = (await getCommonNotes()).filter((n) => n.id !== id);
+      await chrome.storage.local.set({ [KEYS.COMMON_NOTES]: notes });
+    });
   }
 
   MA.storage = {
