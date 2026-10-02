@@ -8,7 +8,6 @@ and one-click WhatsApp-ready report generation.
 No backend, no accounts, no cloud — everything is stored locally in the
 browser via `chrome.storage.local`.
 
-See **`plan.md`** for the full architecture, data model, and design
 decisions — it's the source of truth for how this extension is built.
 
 ## Install (Developer Mode — no Chrome Web Store needed)
@@ -92,7 +91,6 @@ note).
 
 ### Manual checklist (in the actual extension)
 
-See `plan.md` section 10 for the full manual test checklist covering the
 floating panel, keyboard shortcuts, half-increments, student management,
 report generation against the samples, the non-submission report, and the
 highest-grade trophy tag.
@@ -101,7 +99,6 @@ highest-grade trophy tag.
 
 ```
 manifest.json              Manifest V3 config
-plan.md                    Full implementation plan (source of truth)
 icons/                     Toolbar icons
 src/
   shared/                  Pure logic + storage layer, shared by content
